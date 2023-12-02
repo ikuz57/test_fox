@@ -1,0 +1,45 @@
+docker-composeversion: '3.3'
+
+services:
+  postgres:
+    image: postgres:16.0-alpine
+    container_name: 'postgres_fox'
+    volumes:
+      - postgre_db_fox:/var/lib/postgresql/data
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    container_name: 'redis_fox'
+    image: redis
+    volumes:
+      - redis_fox:/data
+
+  bot:
+    container_name: 'bot_fox'
+    build: ./bot
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - postgres
+    restart: on-failure
+
+  # backend:
+  #   container_name: 'backend_fox'
+  #   build: ./backend
+  #   env_file:
+  #     - .env
+  #   command: gunicorn main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
+  #   depends_on:
+  #     - bot
+  #   restart: on-failure
+
+volumes:
+  redis_fox:
+  postgre_db_fox:
