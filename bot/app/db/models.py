@@ -1,10 +1,10 @@
 import datetime
 from typing import Annotated, List, Optional
 
-from sqlalchemy import TIMESTAMP, ForeignKey, String, text
+from sqlalchemy import TIMESTAMP, ForeignKey, String, text, Integer
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from fastapi_users.db import SQLAlchemyBaseUserTableUUID
+from fastapi_users.db import SQLAlchemyBaseUserTable
 
 
 created_at = Annotated[datetime.datetime, mapped_column(
@@ -27,36 +27,36 @@ class Base(DeclarativeBase):
     pass
 
 
-class User(SQLAlchemyBaseUserTableUUID, Base):
-    ticket: Mapped[list['Ticket']] = relationship(
-        back_populates='tickets', uselist=True, secondary='ticket_assignments'
+class User(SQLAlchemyBaseUserTable[int], Base):
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(String(32), unique=True)
+
+    tickets: Mapped[list['Ticket']] = relationship(
+        back_populates='users', uselist=True, cascade='all, delete'
     )
 
 
 class Ticket(Base):
-    __tablename__ = "tickets"
+    __tablename__ = "ticket"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    telegram_user_id: Mapped[int] = mapped_column(unique=True)
-    status: Mapped[str] = mapped_column(String(64), unique=True)
+    telegram_user_id: Mapped[int] = mapped_column()
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey('user.id'))
+    status: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[created_at]
     updated_at: Mapped[updated_at]
 
+    users: Mapped['User'] = relationship(
+        back_populates='tickets', uselist=False
+    )
 
+    
 class Message(Base):
-    __tablename__ = "messages"
+    __tablename__ = "message"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    ticket_id: Mapped[int] = mapped_column(ForeignKey("tickets.ticket_id"))
-    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey('user.uuid'))
+    ticket_id: Mapped[int] = mapped_column(ForeignKey("ticket.id"))
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey('user.id'))
     # в телеграмме ограничение на пост с медиа и файлами 1024 символа
     content: Mapped[str] = mapped_column(String(1024))
-    timestamp: Mapped[timestamp]
-
-
-class TicketAssignment(Base):
-    __tablename__ = "ticket_assignments"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    ticket_id: Mapped[int] = mapped_column(ForeignKey("tickets.id"))
-    employee_id: Mapped[int] = mapped_column(ForeignKey("user.uuid"))
+    timestamp: Mapped[Optional[timestamp]]

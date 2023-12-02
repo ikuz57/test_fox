@@ -1,4 +1,4 @@
-docker-composeversion: '3.3'
+# docker-composeversion: '3.3'
 
 services:
   postgres:
@@ -30,15 +30,15 @@ services:
       - postgres
     restart: on-failure
 
-  # backend:
-  #   container_name: 'backend_fox'
-  #   build: ./backend
-  #   env_file:
-  #     - .env
-  #   command: gunicorn main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
-  #   depends_on:
-  #     - bot
-  #   restart: on-failure
+  backend:
+    container_name: 'backend_fox'
+    build: ./backend
+    env_file:
+      - .env
+    command: gunicorn main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
+    depends_on:
+      - bot
+    restart: on-failure
 
 volumes:
   redis_fox:

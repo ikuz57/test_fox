@@ -12,11 +12,8 @@ load_dotenv()
 
 class Settings(BaseSettings):
     # настройки проекта
-    PROJECT_NAME: str = 'sber_task'
+    PROJECT_NAME: str = 'test_fox'
     BASE_DIR: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-    # настройки pyJWT
-    SECRET: str = os.getenv('SECRET')
 
     # настройки ДБ
     DB_USER: str = os.getenv('POSTGRES_USER')
@@ -26,8 +23,8 @@ class Settings(BaseSettings):
     DB_NAME: str = os.getenv('POSTGRES_DB')
 
     # настройки Redis
-    REDIS_HOST: str = os.getenv("REDIS_HOST", "127.0.0.1")
-    REDIS_PORT: int = os.getenv("REDIS_PORT", 6379)
+    # REDIS_HOST: str = os.getenv("REDIS_HOST", "127.0.0.1")
+    # REDIS_PORT: int = os.getenv("REDIS_PORT", 6379)
 
     class Config:
         env_file = '.env'
