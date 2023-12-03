@@ -40,6 +40,17 @@ services:
       - bot
     restart: on-failure
 
+  nginx:
+    image: nginx:latest
+    container_name: 'nginx_fox'
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/configs:/etc/nginx/conf.d:ro
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
 volumes:
   redis_fox:
   postgre_db_fox:

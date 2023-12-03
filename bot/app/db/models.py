@@ -1,5 +1,5 @@
 import datetime
-from typing import Annotated, List, Optional
+from typing import Annotated, Optional
 
 from sqlalchemy import TIMESTAMP, ForeignKey, String, text, Integer
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -50,7 +50,11 @@ class Ticket(Base):
         back_populates='tickets', uselist=False
     )
 
-    
+    messages: Mapped[list['Message']] = relationship(
+        back_populates='ticket', uselist=True, cascade='all, delete'
+    )
+
+
 class Message(Base):
     __tablename__ = "message"
 
@@ -59,4 +63,8 @@ class Message(Base):
     user_id: Mapped[Optional[int]] = mapped_column(ForeignKey('user.id'))
     # в телеграмме ограничение на пост с медиа и файлами 1024 символа
     content: Mapped[str] = mapped_column(String(1024))
-    timestamp: Mapped[Optional[timestamp]]
+    created_at: Mapped[created_at]
+
+    ticket: Mapped['Ticket'] = relationship(
+        back_populates='messages', uselist=False
+    )

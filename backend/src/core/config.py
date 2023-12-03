@@ -15,6 +15,15 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = 'test_fox'
     BASE_DIR: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+    # fastapi-users
+    SECRET: str = os.getenv('SECRET')
+
+    # Бот
+    BOT_API_KEY: str = os.getenv('BOT_TOKEN')
+
+    # тут мы храним временные файлы
+    FILE_PATH: str = './filepath/'
+
     # настройки ДБ
     DB_USER: str = os.getenv('POSTGRES_USER')
     DB_PASS: str = os.getenv('POSTGRES_PASSWORD')

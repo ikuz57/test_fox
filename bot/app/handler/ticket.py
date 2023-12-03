@@ -1,8 +1,8 @@
 from aiogram import types, F, Router
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, or_
+import requests
 
 from app.db.models import Ticket, Message
-from app.db.sqlalchemy import get_async_session
 from app.db.sqlalchemy import async_session_factory
 
 router = Router()
@@ -19,7 +19,7 @@ async def get(message: types.Message):
                 ).where(
                     and_(
                         Ticket.telegram_user_id == message.chat.id,
-                        Ticket.status == 'Открыт'
+                        or_(Ticket.status == 'Открыт', Ticket.status == 'В работе')
                     )
                 )
             )
@@ -31,6 +31,14 @@ async def get(message: types.Message):
                 content=message.text
             )
             session.add(new_message)
+            await session.flush()
+            await notify_api_service(
+                {
+                    "ticket_id": ticket.id,
+                    "msg_id": new_message.id,
+                    "msg_content": new_message.content
+                }
+            )
         else:
             new_ticket = Ticket(
                 telegram_user_id=message.chat.id,
@@ -44,5 +52,14 @@ async def get(message: types.Message):
                 content=message.text
             )
             session.add(new_message)
-        await session.commit()
-    await message.answer('Ваша жалоба услышена')
+
+            await message.answer(
+                'Ваше обращение зарегестрировано.\n'
+                'К вам уже спешат на помощь.\n'
+                f'Номер вашего обращения: {new_ticket.id}'
+            )
+
+
+async def notify_api_service(message_data):
+    api_url = "http://backend:8000/api/v1/message/notify"
+    requests.post(api_url, json=message_data)

@@ -1,92 +1,58 @@
 import logging
 from functools import lru_cache
 from typing import List
+
 from fastapi import Depends, HTTPException
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.exc import NoResultFound
-from sqlalchemy.orm import selectinload
 from sqlalchemy import func, desc
+from sqlalchemy.orm import selectinload
+from sqlalchemy.exc import NoResultFound
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.v1.schemas import UserReadShort, GroupCreate, GroupRead, GroupUpdate
-from src.api.v1.schemas import GroupReadShort
-from src.db.models import Group, User, Project
+from src.db.models import Ticket, User
+from src.api.v1.schemas import TicketRead, TickeDetail, MessageReadShort
+from src.api.v1.schemas import TicketUpdate
+
 from src.db.sqlalchemy import get_async_session
 
 
-class GroupService:
+class TicketService:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def create(self, group_data: GroupCreate) -> None:
-        async with self.session.begin():
-            project = await self.session.get(
-                Project, group_data.project_id,
-                options=(
-                    selectinload(Project.groups),
-                )
-            )
-            if not project:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f'Проект с id={group_data.project_id} не существует.'
-                )
-
-            new_group = Group(name=group_data.name)
-            non_existent_users = []
-            for user_id in group_data.users:
-                user = await self.session.get(User, user_id)
-                if user:
-                    new_group.users.append(user)
-                else:
-                    non_existent_users.append(user_id)
-            if non_existent_users:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f'Пользователей с id={non_existent_users} не существует.'
-                )
-            self.session.add(new_group)
-            project.groups.append(new_group)
-            logging.info(f'{project=}')
-            logging.info(f'{new_group=}')
-            await self.session.flush()
-            new_id =new_group.id
-            await self.session.commit()
-            return new_id
-
-    async def get_group_list(
+    async def get_pagination(
         self,
         sort: str,
-        filter_group: int,
+        filter_status: str,
+        filter_user: int,
         page_size: int,
         page_number: int
-    ) -> List[GroupReadShort]:
+    ) -> List[TicketRead]:
         offset = (page_number - 1) * page_size
-        sort_by = getattr(Group, sort.replace('-', ''), Group.id)
+        sort_by = getattr(Ticket, sort.replace('-', ''), Ticket.id)
         async with self.session.begin():
-            if filter_group:
-                project = await self.session.get(Project, filter_group)
-                if not project:
-                    raise HTTPException(status_code=404, detail='Нет проекта с таким id')
-                total_group = (await self.session.execute(
-                    select(func.count('*')).select_from(Group).where(
-                    Group.project_id == filter_group
-                ))).scalar()
-            else:
-                total_group = (await self.session.execute(
-                    select(func.count('*')).select_from(Group)
-                )).scalar()
+            total_query = select(func.count('*')).select_from(Ticket)
             query = select(
-                    Group
+                    Ticket
                 ).options(
-                    selectinload(Group.users),
-                    selectinload(Group.project)
+                    selectinload(Ticket.messages)
                 )
-            if filter_group:
+            if filter_status:
                 query = query.where(
-                    Group.project_id == filter_group
+                    Ticket.status == filter_status
                 )
+                total_query = total_query.where(
+                    Ticket.status == filter_status
+                )
+            if filter_user:
+                query = query.where(
+                    Ticket.user_id == filter_user
+                )
+                total_query = total_query.where(
+                    Ticket.user_id == filter_user
+                )
+
             query = query.order_by(
                 desc(sort_by) if sort.startswith('-') else sort_by
             ).offset(
@@ -94,102 +60,77 @@ class GroupService:
             ).limit(
                 page_size
             )
-            groups = (await self.session.scalars(query)).all()
-            group_list = []
-            current_group = None
-            for item in groups:
-                if current_group is None or current_group.id != item.id:
-                    if current_group is not None:
-                        group_list.append(current_group)
-                    current_group = GroupRead(
-                        id=item.id,
-                        name=item.name,
-                        project_id=item.project_id,
-                        users=[]
-                    )
-                    for user in item.users:
-                        user_to_add = UserReadShort(
-                            id=user.id,
-                            first_name=user.first_name,
-                            middle_name=user.middle_name,
-                            last_name=user.last_name
-                        )
-                        current_group.users.append(user_to_add)
-            if current_group is not None:
-                group_list.append(current_group)
-        return group_list, total_group
+            tickets = (await self.session.scalars(query)).all()
+            ticket_list = [TicketRead(
+                    id=x.id,
+                    user_id=x.user_id,
+                    status=x.status,
+                    created_at=x.created_at
+                ) for x in tickets]
+            total_ticket = (await self.session.execute(total_query)).scalar()
+        return ticket_list, total_ticket
 
-
-    async def get_group_by_id(self, group_id: str) -> GroupRead:
+    async def get_by_id(self, ticket_id: str) -> TickeDetail:
         async with self.session.begin():
             try:
-                group = (
+                ticket = (
                     await self.session.scalars(
-                        select(Group).where(
-                            Group.id == group_id).options(selectinload(Group.users))
-                    )
-                ).one()
+                        select(Ticket).where(
+                            Ticket.id == ticket_id).options(
+                                selectinload(Ticket.messages)
+                            )
+                        )
+                    ).one()
             except NoResultFound:
-                raise HTTPException(status_code=404, detail='Группы с таким id не существует')
-            group_return = GroupRead(
-                id=group.id,
-                name=group.name,
-                users=[UserReadShort(
+                raise HTTPException(
+                    status_code=404, detail='Ticket с таким id не существует'
+                )
+            ticket_return = TickeDetail(
+                id=ticket.id,
+                telegram_user_id=ticket.telegram_user_id,
+                status=ticket.status,
+                created_at=ticket.created_at,
+                user_id=ticket.user_id,
+                messages=[MessageReadShort(
                     id=x.id,
-                    first_name=x.first_name,
-                    middle_name=x.middle_name,
-                    last_name=x.last_name
-                ) for x in group.users],
-                project_id=group.project_id
+                    user_id=x.user_id,
+                    content=x.content,
+                    created_at=x.created_at
+                ) for x in ticket.messages]
             )
-            return group_return
+            return ticket_return
 
-    async def update(self, group_id: int, group_data: GroupUpdate):
-        if group_data:
+    async def update(self, ticket_id: int, ticket_data: TicketUpdate) -> int:
+        if ticket_data:
             async with self.session.begin():
-                group = (
+                ticket = (
                     await self.session.scalars(
-                        select(Group).where(
-                            Group.id == group_id).options(selectinload(Group.users))
+                        select(Ticket).where(
+                            Ticket.id == ticket_id
+                        ).options(selectinload(Ticket.messages))
                     )
                 ).one()
-                if group_data.name:
-                    group.name = group_data.name
-                if group_data.users:
-                    non_existent_users = []
-                    old_users = group.users
-                    group.users.clear()
-                    for user_id in group_data.users:
-                        user = await self.session.get(User, user_id)
-                        if user:
-                            group.users.append(user)
-                        else:
-                            non_existent_users.append(user_id)
-                    if non_existent_users:
-                        group.users = old_users
+                if ticket_data.status:
+                    ticket.status = ticket_data.status
+                if ticket_data.user_id:
+                    user = await self.session.get(User, ticket_data.user_id)
+                    if user:
+                        ticket.user_id = ticket_data.user_id
+                    else:
                         raise HTTPException(
                             status_code=404,
-                            detail=f'Пользователей с id={non_existent_users} не существует.'
+                            detail=(
+                                f'Пользователь с id={ticket_data.user_id} не '
+                                'существует.'
+                            )
                         )
                 await self.session.commit()
                 return
         raise HTTPException(status_code=400, detail='Пустой запрос')
 
-    async def delete(self, group_id: int) -> None:
-
-        async with self.session.begin():
-            group = await self.session.get(Group, group_id)
-            if not group:
-                raise HTTPException(status_code=404, detail='Группы с таким id не существует')
-        try:
-                await self.session.delete(group)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f'{e}')
-        else:
-            await self.session.commit()
 
 @lru_cache()
-def get_group_service(
+def get_ticket_service(
     session: AsyncSession = Depends(get_async_session),
-) -> GroupService:
-    return GroupService(session)
+) -> TicketService:
+    return TicketService(session)
