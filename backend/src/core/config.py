@@ -1,9 +1,9 @@
 import os
 from logging import config as logging_config
 
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
 
-from dotenv import load_dotenv
 from .logger import LOGGING
 
 logging_config.dictConfig(LOGGING)
@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     BOT_API_KEY: str = os.getenv('BOT_TOKEN')
 
     # тут мы храним временные файлы
-    FILE_PATH: str = './filepath/'
+    FILE_PATH: str = '/fox_test/file_storage'
 
     # настройки ДБ
     DB_USER: str = os.getenv('POSTGRES_USER')
@@ -30,10 +30,6 @@ class Settings(BaseSettings):
     DB_HOST: str = os.getenv('POSTGRES_HOST')
     DB_PORT: str = os.getenv('POSTGRES_PORT')
     DB_NAME: str = os.getenv('POSTGRES_DB')
-
-    # настройки Redis
-    # REDIS_HOST: str = os.getenv("REDIS_HOST", "127.0.0.1")
-    # REDIS_PORT: int = os.getenv("REDIS_PORT", 6379)
 
     class Config:
         env_file = '.env'

@@ -1,20 +1,18 @@
-import base64
-from fastapi import APIRouter, Depends, Query, Request, WebSocket
-from fastapi import WebSocketDisconnect, HTTPException
+import jwt
+from fastapi import (APIRouter, Depends, HTTPException, Query, Request,
+                     WebSocket, WebSocketDisconnect)
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
-from src.service.ticket import get_ticket_service, TicketService
-from src.api.v1.schemas import TickeDetail, TicketUpdate, TicketRead
-from src.core.connections import TempConnection
-from .paginator import pagination
-from src.service.user import auth_check
-from src.service.message import get_message_service, MessageService
-from src.service.user import get_user_manager, UserManager
-from src.api.v1.schemas import MessageCreate
-from src.core.config import settings
-import requests
-import jwt
 from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
+from src.api.v1.schemas import (MessageCreate, TickeDetail, TicketRead,
+                                TicketUpdate)
+from src.core.config import settings
+from src.core.connections import TempConnection
+from src.service.message import MessageService, get_message_service
+from src.service.ticket import TicketService, get_ticket_service
+from src.service.user import auth_check
+
+from .paginator import pagination
 
 router = APIRouter()
 
@@ -27,11 +25,11 @@ router = APIRouter()
 async def get_list(
     request: Request,
     sort: str = '-created_at',
-    filter_status: str = Query(
+    filter_status: int = Query(
         None,
         alias='filter[status]',
         description=(
-            'status по которому будет производиться фильтрация проектов'
+            'status_id по которому будет производиться фильтрация проектов'
             )
     ),
     filter_user: int = Query(
@@ -61,7 +59,7 @@ async def get_list(
         description='Вывод детальной информации по тикету'
     )
 @auth_check
-async def project_details(
+async def detail(
     request: Request,
     ticket_id: int,
     ticket_service: TicketService = Depends(get_ticket_service)
@@ -102,6 +100,9 @@ async def websocket_endpoint(
     try:
         while True:
             data = await websocket.receive_text()
+            # Так как у нас не передать заголовок при создании соединения, а у
+            # нас на нем авторизация,то
+            # фронт будет передавать в сокет токен, а мы уже обработаем это.
             if data.startswith('Authorization: '):
                 access_token = data.split(": ")[1]
                 if not access_token:
@@ -110,31 +111,30 @@ async def websocket_endpoint(
                         detail='Требуется аутентификация'
                     )
                 try:
-                    data = jwt.decode(access_token, settings.SECRET, algorithms='HS256')
+                    data = jwt.decode(
+                        access_token,
+                        settings.SECRET,
+                        algorithms='HS256'
+                    )
                 except ExpiredSignatureError:
-                    # Генерируем исключение HTTPException для случая истекшего токена
-                    raise HTTPException(status_code=403, detail='токен истек')
-                except InvalidTokenError as e:
-                    # Генерируем исключение HTTPException для случая недействительного
-                    # токена
                     raise HTTPException(
-                        status_code=401, detail=f'токен недействителен, {str(e)}'
+                        status_code=403,
+                        detail='токен истек'
+                    )
+                except InvalidTokenError as e:
+                    raise HTTPException(
+                        status_code=401,
+                        detail=f'токен недействителен, {str(e)}'
                     )
                 except Exception as e:
                     # Генерируем общее исключение для других ошибок
                     raise HTTPException(
-                        status_code=500, detail=f'ошибка при проверке токена: {str(e)}'
+                        status_code=500,
+                        detail=f'ошибка при проверке токена: {str(e)}'
                     )
                 user_id = int(data['user_id'])
                 data = None
                 await websocket.send_text("Авторизация пройдена")
-            # if data.startswith("file:"):
-            #     file_data = data.split(":")[1]
-            #     file_content, file_name = file_data.split(";")
-            #     requests.post(self.api_url + method, data={'chat_id': chat_id}, files={'document': document})
-            #     # Сохраняем файл на сервере
-            #     # await save_file_from_base64(file_content, file_name)
-                # await websocket.send_text(f"File '{file_name}' received and saved.")
             if user_id and data is not None:
                 await message_service.create(
                     MessageCreate(
@@ -143,15 +143,5 @@ async def websocket_endpoint(
                     ),
                     user_id
                 )
-                await websocket.send_text(f"Message text was: {data}")
     except WebSocketDisconnect:
         del TempConnection.connections[ticket_id]
-
-
-async def save_file_from_base64(self, base64_content: str, file_name: str):
-    # Декодируем base64 строку в байты
-    file_content = base64.b64decode(base64_content)
-    file_path = settings.FILE_PATH + file_name
-    # Сохраняем файл на сервере
-    with open(file_path, "wb") as f:
-        f.write(file_content)

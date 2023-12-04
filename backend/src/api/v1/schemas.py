@@ -1,9 +1,9 @@
-from typing import Optional, List
 import datetime
+from typing import List, Optional
 
 from pydantic import BaseModel as PydanticBaseModel
-from src.core import json
 from pydantic import validator
+from src.core import json
 from src.core.validators.pydantic import PydanticValidator
 
 
@@ -11,40 +11,6 @@ class BaseModel(PydanticBaseModel):
     class Config:
         json_loads = json.loads
         json_dumps = json.dumps
-
-
-class MessageCreate(BaseModel):
-    ticket_id: int
-    content: str
-
-
-class MessageReadShort(BaseModel):
-    id: int
-    user_id: Optional[int]
-    content: str
-    created_at: datetime.datetime
-
-
-class MessageRead(MessageReadShort):
-    ticket_id: int
-
-
-class TicketRead(BaseModel):
-    id: int
-    user_id: Optional[int]
-    status: str
-    created_at: datetime.datetime
-
-
-class TickeDetail(TicketRead):
-    telegram_user_id: int
-    messages: List[MessageReadShort]
-    user_id: Optional[int]
-
-
-class TicketUpdate(BaseModel):
-    user_id: Optional[int] = None
-    status: Optional[str] = None
 
 
 class UserRead(BaseModel):
@@ -82,3 +48,71 @@ class UserUpdate(BaseModel):
     @validator('password_new', 'password_old')
     def validate_password(cls, v):
         return PydanticValidator.validate_password(v)
+
+
+class MessageCreate(BaseModel):
+    ticket_id: int
+    content: str
+
+
+class MessageReadShort(BaseModel):
+    id: int
+    user_id: Optional[int]
+    content: str
+    created_at: datetime.datetime
+
+
+class MessageRead(MessageReadShort):
+    ticket_id: int
+    user_id: Optional[UserRead]
+
+
+class StatusRead(BaseModel):
+    id: int
+    name: str
+
+
+class TicketRead(BaseModel):
+    id: int
+    user_id: Optional[UserRead]
+    status: StatusRead
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+
+
+class TickeDetail(TicketRead):
+    telegram_user_id: int
+    messages: List[MessageReadShort]
+
+
+class TicketUpdate(BaseModel):
+    user_id: Optional[int] = None
+    status: Optional[int] = None
+
+
+class SchedulerCreate(BaseModel):
+    telegram_user_id: int
+
+
+class SchedulerRead(SchedulerCreate):
+    id: int
+    user_id: int
+
+
+class SchedulerDelete(SchedulerCreate):
+    pass
+
+
+class ReadFile(BaseModel):
+    id: int
+    name: str
+
+
+class FileDetail(ReadFile):
+    created_at: datetime.datetime
+    created_by: Optional[UserRead]
+
+
+class UploadFile(BaseModel):
+    files: List[ReadFile]
+    created_by: Optional[UserRead]

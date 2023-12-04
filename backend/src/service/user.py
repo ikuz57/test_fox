@@ -1,21 +1,21 @@
-import logging
-import uuid
 from datetime import datetime, timedelta
 from functools import lru_cache, wraps
 from typing import Optional
 
 import jwt
-from fastapi import Depends, HTTPException, Request
 from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
+
+from fastapi import Depends, HTTPException, Request
+
 from passlib.hash import pbkdf2_sha256
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.v1.schemas import UserCreate
-from src.api.v1.schemas import UserLogin, UserRead
+from src.api.v1.schemas import UserCreate, UserLogin, UserRead
 from src.core.config import settings
 from src.db.models import User
-from src.db.sqlalchemy import get_async_session, async_session_factory
+from src.db.sqlalchemy import async_session_factory, get_async_session
 
 
 class UserManager:
@@ -31,7 +31,7 @@ class UserManager:
 
     async def create(
             self, user: UserCreate
-    ) -> int:
+    ) -> UserRead:
         """
         Создает нового пользователя.
         Args:
@@ -65,10 +65,10 @@ class UserManager:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f'{e}')
         else:
-            # await self.session.flush()
-            # new_id = new_user.id
+            await self.session.flush()
+            new_id = new_user.id
             await self.session.commit()
-            # return new_id
+            return UserRead(id=new_id, username=user.username)
 
     async def login(
             self,
@@ -98,17 +98,8 @@ class UserManager:
                 detail='Неправильный логин или пароль'
             )
 
-    async def logout(self, session_uuid: uuid):
-        """
-        Удаляет сессию из Redis.
-        Args:
-            session_uuid (uuid): Идентификатор сессии, который нужно удалить.
-        """
-        if session_uuid is None:
-            raise HTTPException(
-                status_code=401, detail='ошибка fingerprint или cookie'
-            )
-        await self.get_session_redis(session_uuid)
+    async def logout(self):
+        pass
 
     async def is_valid_token(
             self, token: str, secret: Optional[str] = None
@@ -138,11 +129,6 @@ class UserManager:
             # токена
             raise HTTPException(
                 status_code=401, detail=f'токен недействителен, {str(e)}'
-            )
-        except Exception as e:
-            # Генерируем общее исключение для других ошибок
-            raise HTTPException(
-                status_code=500, detail=f'ошибка при проверке токена: {str(e)}'
             )
 
     async def create_access_token(self, user_id: int):
@@ -203,12 +189,12 @@ def auth_check(func):
                 status_code=401,
                 detail='Требуется аутентификация'
             )
-        user_id = await user_manager.get_current_user(request)
-        request.headers.__dict__["_list"].append(
-            ("auth_user_id".encode(), str(user_id).encode())
-        )
         access_token = authorization_header[7:]
         if await user_manager.is_valid_token(access_token, settings.SECRET):
+            user_id = await user_manager.get_current_user(request)
+            request.headers.__dict__["_list"].append(
+                ("auth_user_id".encode(), str(user_id).encode())
+            )
             return await func(*args, **kwargs)
         else:
             raise HTTPException(

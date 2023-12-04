@@ -1,11 +1,10 @@
 import asyncio
-import os
 import logging
-
-from dotenv import load_dotenv
+import os
 
 from aiogram import Bot, Dispatcher
 from app.handler import ticket
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -17,10 +16,8 @@ async def main() -> None:
     bot = Bot(token=os.getenv("BOT_TOKEN"))
     dp = Dispatcher()
     dp.include_router(ticket.router)
-    # await bot(DeleteWebhook(drop_pending_updates=True))
     await dp.start_polling(bot)
 
 
 if __name__ == "__main__":
-    logging.info('START BOT')
     asyncio.run(main())

@@ -1,19 +1,16 @@
-import logging
 from functools import lru_cache
 from typing import List
 
 from fastapi import Depends, HTTPException
 
-from sqlalchemy import select
-from sqlalchemy import func, desc
-from sqlalchemy.orm import selectinload
+from sqlalchemy import desc, func, select
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
+from src.api.v1.schemas import (MessageReadShort, StatusRead, TickeDetail,
+                                TicketRead, TicketUpdate, UserRead)
 from src.db.models import Ticket, User
-from src.api.v1.schemas import TicketRead, TickeDetail, MessageReadShort
-from src.api.v1.schemas import TicketUpdate
-
 from src.db.sqlalchemy import get_async_session
 
 
@@ -24,7 +21,7 @@ class TicketService:
     async def get_pagination(
         self,
         sort: str,
-        filter_status: str,
+        filter_status: int,
         filter_user: int,
         page_size: int,
         page_number: int
@@ -36,14 +33,22 @@ class TicketService:
             query = select(
                     Ticket
                 ).options(
-                    selectinload(Ticket.messages)
+                    selectinload(
+                        Ticket.messages
+                    ),
+                    selectinload(
+                        Ticket.status
+                    ),
+                    selectinload(
+                        Ticket.user
+                    )
                 )
             if filter_status:
                 query = query.where(
-                    Ticket.status == filter_status
+                    Ticket.status_id == filter_status
                 )
                 total_query = total_query.where(
-                    Ticket.status == filter_status
+                    Ticket.status_id == filter_status
                 )
             if filter_user:
                 query = query.where(
@@ -63,9 +68,16 @@ class TicketService:
             tickets = (await self.session.scalars(query)).all()
             ticket_list = [TicketRead(
                     id=x.id,
-                    user_id=x.user_id,
-                    status=x.status,
-                    created_at=x.created_at
+                    user_id=UserRead(
+                        id=x.user.id,
+                        username=x.user.username
+                    ) if x.user_id is not None else None,
+                    status=StatusRead(
+                        id=x.status.id,
+                        name=x.status.name
+                    ),
+                    created_at=x.created_at,
+                    updated_at=x.updated_at
                 ) for x in tickets]
             total_ticket = (await self.session.execute(total_query)).scalar()
         return ticket_list, total_ticket
@@ -73,14 +85,15 @@ class TicketService:
     async def get_by_id(self, ticket_id: str) -> TickeDetail:
         async with self.session.begin():
             try:
-                ticket = (
-                    await self.session.scalars(
-                        select(Ticket).where(
-                            Ticket.id == ticket_id).options(
-                                selectinload(Ticket.messages)
-                            )
-                        )
-                    ).one()
+                ticket = await self.session.get(
+                    Ticket,
+                    ticket_id,
+                    options=(
+                        selectinload(Ticket.messages),
+                        selectinload(Ticket.status),
+                        selectinload(Ticket.user),
+                    )
+                )
             except NoResultFound:
                 raise HTTPException(
                     status_code=404, detail='Ticket с таким id не существует'
@@ -88,9 +101,16 @@ class TicketService:
             ticket_return = TickeDetail(
                 id=ticket.id,
                 telegram_user_id=ticket.telegram_user_id,
-                status=ticket.status,
+                status=StatusRead(
+                    id=ticket.status.id,
+                    name=ticket.status.name
+                ),
                 created_at=ticket.created_at,
-                user_id=ticket.user_id,
+                updated_at=ticket.updated_at,
+                user_id=UserRead(
+                    id=ticket.user.id,
+                    username=ticket.user.username
+                ) if ticket.user_id is not None else None,
                 messages=[MessageReadShort(
                     id=x.id,
                     user_id=x.user_id,
@@ -103,15 +123,15 @@ class TicketService:
     async def update(self, ticket_id: int, ticket_data: TicketUpdate) -> int:
         if ticket_data:
             async with self.session.begin():
-                ticket = (
-                    await self.session.scalars(
-                        select(Ticket).where(
-                            Ticket.id == ticket_id
-                        ).options(selectinload(Ticket.messages))
+                ticket = await self.session.get(
+                    Ticket,
+                    ticket_id,
+                    options=(
+                        selectinload(Ticket.messages),
                     )
-                ).one()
+                )
                 if ticket_data.status:
-                    ticket.status = ticket_data.status
+                    ticket.status_id = ticket_data.status
                 if ticket_data.user_id:
                     user = await self.session.get(User, ticket_data.user_id)
                     if user:

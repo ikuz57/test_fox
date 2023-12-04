@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, Request
-from src.service.message import get_message_service, MessageService
+from fastapi.responses import JSONResponse
 from src.api.v1.schemas import MessageCreate, MessageRead
 from src.core.connections import TempConnection
+from src.service.message import MessageService, get_message_service
 from src.service.user import auth_check
+
 router = APIRouter()
 
 
@@ -11,7 +13,7 @@ router = APIRouter()
         description='Создание сообщение в тикет сотрудником'
     )
 @auth_check
-async def project_details(
+async def send(
     request: Request,
     message_data: MessageCreate,
     message_service: MessageService = Depends(get_message_service),
@@ -21,8 +23,12 @@ async def project_details(
     return msg
 
 
-@router.post("/notify")
-async def notify(message_data: dict):
+@router.post('/notify', description='Межсервисное взаимодействие =)')
+async def notify(
+    message_data: dict
+) -> JSONResponse:
     if message_data['ticket_id'] in TempConnection.connections:
-        await TempConnection.connections[message_data['ticket_id']].send_text(message_data['msg_content'])
-    return {"status": "Notification received"}
+        await TempConnection.connections[
+            message_data['ticket_id']
+        ].send_text(message_data['content'])
+    return JSONResponse(content={"status": "Notification received"})

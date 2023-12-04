@@ -1,15 +1,16 @@
 import logging
 from functools import lru_cache
+
 import requests
+
 from fastapi import Depends, HTTPException
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.db.models import Message, User, Ticket
-from src.api.v1.schemas import MessageCreate, MessageRead
-from src.db.sqlalchemy import get_async_session
-
+from src.api.v1.schemas import MessageCreate, MessageRead, UserRead
 from src.core.config import settings
+from src.db.models import Message, Ticket, User
+from src.db.sqlalchemy import get_async_session
 
 
 class MessageService:
@@ -26,7 +27,7 @@ class MessageService:
                     status_code=404,
                     detail=f'Тикета с id={message_data.ticket_id} нет.'
                 )
-            if ticket.user_id != auth_user_id or ticket.status != 'В работе':
+            if ticket.user_id != auth_user_id or ticket.status_id != 2:
                 # это что бы все подряд не писали в тикет и в дальнейшем можно
                 # нужно будет логи добавить что бы видеть кто кому писал.
                 raise HTTPException(
@@ -43,11 +44,15 @@ class MessageService:
                 content=message_data.content
 
             )
+            user = await self.session.get(User, auth_user_id)
             self.session.add(new_message)
             await self.session.flush()
             msg = MessageRead(
                 id=new_message.id,
-                user_id=new_message.user_id,
+                user_id=UserRead(
+                    id=user.id,
+                    username=user.username
+                ),
                 ticket_id=new_message.ticket_id,
                 content=new_message.content,
                 created_at=new_message.created_at

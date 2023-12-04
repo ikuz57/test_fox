@@ -25,6 +25,8 @@ services:
     build: ./bot
     env_file:
       - .env
+    volumes:
+      - file_storage:/fox_test/file_storage
     depends_on:
       - redis
       - postgres
@@ -35,6 +37,8 @@ services:
     build: ./backend
     env_file:
       - .env
+    volumes:
+      - file_storage:/fox_test/file_storage
     command: gunicorn main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
     depends_on:
       - bot
@@ -54,3 +58,4 @@ services:
 volumes:
   redis_fox:
   postgre_db_fox:
+  file_storage:
