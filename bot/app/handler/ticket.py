@@ -69,7 +69,7 @@ async def get_msg(message: types.Message):
             new_message = Message(
                 ticket_id=new_ticket.id,
                 user_id=None,
-                content="Пользователь прикрепил файл: file_id={}"
+                content=message.text
             )
             session.add(new_message)
             await message.answer(

@@ -4,7 +4,6 @@ from typing import List
 from fastapi import Depends, HTTPException
 
 from sqlalchemy import desc, func, select
-from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -84,17 +83,16 @@ class TicketService:
 
     async def get_by_id(self, ticket_id: str) -> TickeDetail:
         async with self.session.begin():
-            try:
-                ticket = await self.session.get(
-                    Ticket,
-                    ticket_id,
-                    options=(
-                        selectinload(Ticket.messages),
-                        selectinload(Ticket.status),
-                        selectinload(Ticket.user),
-                    )
+            ticket = await self.session.get(
+                Ticket,
+                ticket_id,
+                options=(
+                    selectinload(Ticket.messages),
+                    selectinload(Ticket.status),
+                    selectinload(Ticket.user),
                 )
-            except NoResultFound:
+            )
+            if not ticket:
                 raise HTTPException(
                     status_code=404, detail='Ticket с таким id не существует'
                 )
