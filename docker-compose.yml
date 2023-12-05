@@ -14,12 +14,6 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    container_name: 'redis_fox'
-    image: redis
-    volumes:
-      - redis_fox:/data
-
   bot:
     container_name: 'bot_fox'
     build: ./bot
@@ -28,7 +22,6 @@ services:
     volumes:
       - file_storage:/fox_test/file_storage
     depends_on:
-      - redis
       - postgres
     restart: on-failure
 
@@ -56,6 +49,5 @@ services:
       - "80:80"
 
 volumes:
-  redis_fox:
   postgre_db_fox:
   file_storage:

@@ -130,6 +130,11 @@ class TicketService:
                         selectinload(Ticket.messages),
                     )
                 )
+                if not ticket:
+                    raise HTTPException(
+                        status_code=404,
+                        detail="Несуществующий тикет"
+                    )
                 if ticket_data.status:
                     ticket.status_id = ticket_data.status
                 if ticket_data.user_id:

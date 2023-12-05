@@ -11,6 +11,7 @@ from src.api.v1.schemas import MessageCreate, MessageRead, UserRead
 from src.core.config import settings
 from src.db.models import Message, Ticket, User
 from src.db.sqlalchemy import get_async_session
+from src.core.connections import TempConnection
 
 
 class MessageService:
@@ -30,13 +31,17 @@ class MessageService:
             if ticket.user_id != auth_user_id or ticket.status_id != 2:
                 # это что бы все подряд не писали в тикет и в дальнейшем можно
                 # нужно будет логи добавить что бы видеть кто кому писал.
-                raise HTTPException(
-                    status_code=403,
-                    detail=(
+                msg = (
                         'Что бы отправить сообщение в рамках этого тикета, '
                         'необходимо поставить себя исполнителем.'
                         'И Установить статус в работе!'
-                    )
+                )
+                conn = TempConnection.connections.get(ticket.id, None)
+                if conn:
+                    await TempConnection.connections[ticket.id].send_text(msg)
+                raise HTTPException(
+                    status_code=403,
+                    detail=msg
                 )
             new_message = Message(
                 ticket_id=message_data.ticket_id,
