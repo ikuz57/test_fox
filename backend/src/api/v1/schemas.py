@@ -41,15 +41,6 @@ class UserCreate(BaseModel):
         return PydanticValidator.validate_username(v)
 
 
-class UserUpdate(BaseModel):
-    password_new: Optional[str] = None
-    password_old: Optional[str] = None
-
-    @validator('password_new', 'password_old')
-    def validate_password(cls, v):
-        return PydanticValidator.validate_password(v)
-
-
 class MessageCreate(BaseModel):
     ticket_id: int
     content: str
@@ -87,7 +78,7 @@ class TickeDetail(TicketRead):
 
 class TicketUpdate(BaseModel):
     user_id: Optional[int] = None
-    status: Optional[int] = None
+    status_id: Optional[int] = None
 
 
 class SchedulerCreate(BaseModel):

@@ -135,8 +135,8 @@ class TicketService:
                         status_code=404,
                         detail="Несуществующий тикет"
                     )
-                if ticket_data.status:
-                    ticket.status_id = ticket_data.status
+                if ticket_data.status_id:
+                    ticket.status_id = ticket_data.status_id
                 if ticket_data.user_id:
                     user = await self.session.get(User, ticket_data.user_id)
                     if user:
